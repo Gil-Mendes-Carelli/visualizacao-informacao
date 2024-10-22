@@ -1,5 +1,5 @@
 import streamlit as st
-from uinterface.dashboard import Dashboard
+from GUI.dashboard import Dashboard
 
 def main():
     st.title("Visualizador de Dados Multidimensionais")
