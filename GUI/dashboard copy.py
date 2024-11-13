@@ -7,13 +7,12 @@ import plotly.figure_factory as ff
 import plotly.graph_objects as go
 import base64
 import io
-from services.data_tools import generate_missing_data_matrix_from, remove_nan_rows_from
 
 
 class Dashboard:
-    def __init__(self) -> None:
-        self.app: dash.Dash = dash.Dash(__name__)
-        self.dataframe: pd.DataFrame = pd.DataFrame()
+    def __init__(self):
+        self.app = dash.Dash(__name__)
+        self.dataframe = pd.DataFrame()
         self.layout()
 
     def layout(self) -> None:
@@ -46,7 +45,10 @@ class Dashboard:
                                         dcc.Upload(
                                             id="upload-data",
                                             children=html.Div(
-                                                ["selecione um arquivo CSV"]
+                                                [
+                                                    "Arraste e solte ou ",
+                                                    html.A("selecione um arquivo CSV"),
+                                                ]
                                             ),
                                             style={
                                                 "width": "100%",
@@ -63,7 +65,15 @@ class Dashboard:
                                     ],
                                     className="mb-4",
                                 ),
-                                # Data Manipulation
+                                # Controles de Dimensões
+                                html.Div(
+                                    [
+                                        html.H3("Dimensões"),
+                                        html.Div(id="dimension-checklist"),
+                                    ],
+                                    className="mb-4",
+                                ),
+                                # Controles de Manipulação
                                 html.Div(
                                     [
                                         html.H3("Manipulação de Dados"),
@@ -76,14 +86,8 @@ class Dashboard:
                                                     style={"width": "100%"},
                                                 ),
                                                 html.Button(
-                                                    "Escolher coluna rótulo",
-                                                    id="label-button",
-                                                    className="button-primary mb-2",
-                                                    style={"width": "100%"},
-                                                ),
-                                                html.Button(
-                                                    "Escolher Dimensões",
-                                                    id="dimension-button",
+                                                    "Normalização",
+                                                    id="normalize-button",
                                                     className="button-primary mb-2",
                                                     style={"width": "100%"},
                                                 ),
@@ -120,7 +124,7 @@ class Dashboard:
                                         ),
                                     ]
                                 ),
-                                # Exploration Area
+                                # Área de Análise Exploratória
                                 html.Div(
                                     [
                                         dcc.Tabs(
@@ -138,6 +142,14 @@ class Dashboard:
                                                     children=[
                                                         dcc.Graph(
                                                             id="missing-data-matrix"
+                                                        )
+                                                    ],
+                                                ),
+                                                dcc.Tab(
+                                                    label="Estatísticas",
+                                                    children=[
+                                                        html.Div(
+                                                            id="statistics-content"
                                                         )
                                                     ],
                                                 ),
@@ -161,120 +173,127 @@ class Dashboard:
 
     def setup_callbacks(self) -> None:
         @self.app.callback(
-            Output("output-data-upload", "children"),
-            Output("missing-data-matrix", "figure"),
-            Input("upload-data", "contents"),
-            Input("remove-missing-data-button", "n_clicks"),
-            State("output-data-upload", "children"),
+            [
+                Output("output-data-upload", "children"),
+                Output("missing-data-matrix", "figure"),
+            ],
+            [Input("upload-data", "contents")],
+            [State("upload-data", "filename")],
         )
-        def update_data(contents, n_clicks, data):
-            if contents is not None:
-                # Carregar dados do CSV
-                _, content_string = contents.split(",")
-                decoded = base64.b64decode(content_string)
-                try:
+        def update_output(contents: Union[str, None], filename: str) -> Union[
+            Tuple[List[html.Div], Any],
+            Tuple[dash_table.DataTable, go.Figure],
+        ]:
+            if contents is None:
+                return [html.Div(["Nenhum arquivo carregado."])], dash.no_update
+
+            content_string: str = ""
+            _, content_string = contents.split(",")
+            decoded: bytes = base64.b64decode(content_string)
+            try:
+                if "csv" in filename:
                     self.dataframe = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
-                    # Gera a matriz de dados ausentes
-                    missing_data_matrix = generate_missing_data_matrix_from(
-                        self.dataframe
-                    )
-                    # Retorna a tabela e a matriz
-                    return (
-                        dash_table.DataTable(
-                            data=self.dataframe.to_dict("records"),
-                            columns=[
-                                {"name": i, "id": i} for i in self.dataframe.columns
-                            ],
-                            page_size=10,
-                            style_table={"overflowX": "auto"},
-                            style_cell={
-                                "textAlign": "left",
-                                "padding": "5px",
-                            },
-                            style_header={
-                                "backgroundColor": "lightgrey",
-                                "fontWeight": "bold",
-                            },
-                        ),
-                        {
-                            "data": [],
-                            "layout": go.Layout(
-                                images=[
-                                    dict(
-                                        source=missing_data_matrix,
-                                        x=0,
-                                        y=1,
-                                        xref="paper",
-                                        yref="paper",
-                                        sizex=1,
-                                        sizey=1,
-                                        xanchor="left",
-                                        yanchor="top",
-                                        opacity=1,
-                                        layer="above",
-                                    )
-                                ],
-                                width=700,
-                                height=500,
-                                margin=dict(l=0, r=0, t=0, b=0),
-                                hovermode="closest",
-                            ),
-                        },
-                    )
-                except Exception as e:
-                    return f"Erro ao carregar o arquivo: {str(e)}", go.Figure()
+                else:
+                    return [
+                        html.Div(["Arquivo não suportado: ", filename])
+                    ], dash.no_update
+            except Exception as e:
+                return [
+                    html.Div(["Erro ao processar o arquivo: ", str(e)])
+                ], dash.no_update
 
-            if n_clicks > 0:
-                if self.dataframe.empty:
-                    return dash_table.DataTable(), go.Figure()
-                # Removing NaN
-                self.dataframe = remove_nan_rows_from(self.dataframe)
-                # Gera a nova matriz de dados ausentes
-                missing_data_matrix = generate_missing_data_matrix_from(self.dataframe)
+            table = dash_table.DataTable(
+                columns=[{"name": col, "id": col} for col in self.dataframe.columns],
+                data=self.dataframe.to_dict("records"),
+                page_size=10,
+                style_table={"overflowX": "auto"},
+            )
 
-                # Atualiza a tabela de dados com o DataFrame tratado
-                return (
-                    dash_table.DataTable(
-                        data=self.dataframe.to_dict("records"),
-                        columns=[{"name": i, "id": i} for i in self.dataframe.columns],
-                        page_size=10,
-                        style_table={"overflowX": "auto"},
-                        style_cell={
-                            "textAlign": "left",
-                            "padding": "5px",
-                        },
-                        style_header={
-                            "backgroundColor": "lightgrey",
-                            "fontWeight": "bold",
-                        },
-                    ),
-                    {
-                        "data": [],
-                        "layout": go.Layout(
-                            images=[
-                                dict(
-                                    source=missing_data_matrix,
-                                    x=0,
-                                    y=1,
-                                    xref="paper",
-                                    yref="paper",
-                                    sizex=1,
-                                    sizey=1,
-                                    xanchor="left",
-                                    yanchor="top",
-                                    opacity=1,
-                                    layer="above",
-                                )
-                            ],
-                            width=700,
-                            height=500,
-                            margin=dict(l=0, r=0, t=0, b=0),
-                            hovermode="closest",
-                        ),
-                    },
+            missing_data_matrix_fig = ff.create_annotated_heatmap(
+                z=self.dataframe.isna().astype(int).values,
+                x=list(self.dataframe.columns),
+                y=list(self.dataframe.index),
+                annotation_text=self.dataframe.isna().astype(int).astype(str).values,
+                colorscale="Viridis",
+            )
+
+            return table, missing_data_matrix_fig
+
+        @self.app.callback(
+            Output("dimension-checklist", "children"),
+            [Input("upload-data", "contents")],
+        )
+        def update_dimensions_checklist(contents):
+            if contents is None or self.dataframe.empty:
+                return []
+
+            numeric_cols = self.dataframe.select_dtypes(include=[float, int]).columns
+            return dcc.Checklist(
+                options=[{"label": f" {col}", "value": col} for col in numeric_cols],
+                value=list(numeric_cols),
+                id="dimension-selector",
+                style={"marginLeft": "10px"},
+            )
+
+        @self.app.callback(
+            Output("statistics-content", "children"), [Input("upload-data", "contents")]
+        )
+        def update_statistics(contents):
+            if contents is None or self.dataframe.empty:
+                return html.Div("Carregue um dataset para ver as estatísticas")
+
+            stats = self.dataframe.describe()
+            return dash_table.DataTable(
+                data=stats.reset_index().to_dict("records"),
+                columns=[
+                    {"name": col, "id": col} for col in stats.reset_index().columns
+                ],
+                style_table={"overflowX": "auto"},
+                style_cell={"textAlign": "left", "padding": "5px"},
+                style_header={
+                    "backgroundColor": "rgb(230, 230, 230)",
+                    "fontWeight": "bold",
+                },
+            )
+
+        @self.app.callback(
+            Output("parallel-coordinates-plot", "figure"),
+            [Input("dimension-selector", "value"), Input("upload-data", "contents")],
+        )
+        def update_parallel_coordinates(selected_dimensions, contents):
+            if contents is None or self.dataframe.empty or not selected_dimensions:
+                return {}
+
+            try:
+                color_column = selected_dimensions[0]
+                fig = px.parallel_coordinates(
+                    self.dataframe,
+                    dimensions=selected_dimensions,
+                    color=self.dataframe[color_column],
+                    color_continuous_scale=px.colors.sequential.Viridis,
+                    labels={color_column: color_column},
                 )
+                return fig
+            except Exception as e:
+                print(f"Erro ao atualizar o gráfico: {e}")
+                return {}
 
-            raise dash.exceptions.PreventUpdate  # Não atualiza se não houver cliques ou uploads válidos
+        @self.app.callback(
+            Output("output-data-normalized", "children"),
+            [Input("normalize-button", "n_clicks")],
+            [State("dimension-selector", "value")],
+        )
+        def normalize_data(n_clicks, selected_dimensions):
+            if n_clicks is None or n_clicks == 0 or not selected_dimensions:
+                return ""
+
+            for col in selected_dimensions:
+                if col in self.dataframe.columns:
+                    self.dataframe[col] = (
+                        self.dataframe[col] - self.dataframe[col].min()
+                    ) / (self.dataframe[col].max() - self.dataframe[col].min())
+
+            return "Dados normalizados com sucesso!"
 
     def run(self) -> None:
         self.setup_callbacks()

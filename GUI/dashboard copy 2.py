@@ -76,14 +76,8 @@ class Dashboard:
                                                     style={"width": "100%"},
                                                 ),
                                                 html.Button(
-                                                    "Escolher coluna rótulo",
-                                                    id="label-button",
-                                                    className="button-primary mb-2",
-                                                    style={"width": "100%"},
-                                                ),
-                                                html.Button(
-                                                    "Escolher Dimensões",
-                                                    id="dimension-button",
+                                                    "Normalização",
+                                                    id="normalize-button",
                                                     className="button-primary mb-2",
                                                     style={"width": "100%"},
                                                 ),
@@ -141,6 +135,14 @@ class Dashboard:
                                                         )
                                                     ],
                                                 ),
+                                                dcc.Tab(
+                                                    label="Estatísticas",
+                                                    children=[
+                                                        html.Div(
+                                                            id="statistics-content"
+                                                        )
+                                                    ],
+                                                ),
                                             ]
                                         )
                                     ],
@@ -161,98 +163,41 @@ class Dashboard:
 
     def setup_callbacks(self) -> None:
         @self.app.callback(
-            Output("output-data-upload", "children"),
-            Output("missing-data-matrix", "figure"),
-            Input("upload-data", "contents"),
-            Input("remove-missing-data-button", "n_clicks"),
-            State("output-data-upload", "children"),
+            Output('output-data-upload', 'children'),  
+            Output('missing-data-matrix', 'figure'),   
+            Input('upload-data', 'contents'),
+            Input('remove-missing-data-button', 'n_clicks'),
+            State('output-data-upload', 'children')     
         )
         def update_data(contents, n_clicks, data):
             if contents is not None:
                 # Carregar dados do CSV
-                _, content_string = contents.split(",")
-                decoded = base64.b64decode(content_string)
+                _, content_string = contents.split(',')
+                decoded = base64.b64decode(content_string)                
                 try:
-                    self.dataframe = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
+                    self.dataframe = pd.read_csv(io.StringIO(decoded.decode('utf-8')))   
                     # Gera a matriz de dados ausentes
-                    missing_data_matrix = generate_missing_data_matrix_from(
-                        self.dataframe
-                    )
+                    missing_data_matrix = generate_missing_data_matrix_from(self.dataframe)
                     # Retorna a tabela e a matriz
                     return (
                         dash_table.DataTable(
-                            data=self.dataframe.to_dict("records"),
-                            columns=[
-                                {"name": i, "id": i} for i in self.dataframe.columns
-                            ],
+                            data=self.dataframe.to_dict('records'),
+                            columns=[{"name": i, "id": i} for i in self.dataframe.columns],
                             page_size=10,
-                            style_table={"overflowX": "auto"},
+                            style_table={'overflowX': 'auto'},
                             style_cell={
-                                "textAlign": "left",
-                                "padding": "5px",
+                                'textAlign': 'left',
+                                'padding': '5px',
                             },
                             style_header={
-                                "backgroundColor": "lightgrey",
-                                "fontWeight": "bold",
-                            },
+                                'backgroundColor': 'lightgrey',
+                                'fontWeight': 'bold'
+                            }
                         ),
                         {
-                            "data": [],
-                            "layout": go.Layout(
-                                images=[
-                                    dict(
-                                        source=missing_data_matrix,
-                                        x=0,
-                                        y=1,
-                                        xref="paper",
-                                        yref="paper",
-                                        sizex=1,
-                                        sizey=1,
-                                        xanchor="left",
-                                        yanchor="top",
-                                        opacity=1,
-                                        layer="above",
-                                    )
-                                ],
-                                width=700,
-                                height=500,
-                                margin=dict(l=0, r=0, t=0, b=0),
-                                hovermode="closest",
-                            ),
-                        },
-                    )
-                except Exception as e:
-                    return f"Erro ao carregar o arquivo: {str(e)}", go.Figure()
-
-            if n_clicks > 0:
-                if self.dataframe.empty:
-                    return dash_table.DataTable(), go.Figure()
-                # Removing NaN
-                self.dataframe = remove_nan_rows_from(self.dataframe)
-                # Gera a nova matriz de dados ausentes
-                missing_data_matrix = generate_missing_data_matrix_from(self.dataframe)
-
-                # Atualiza a tabela de dados com o DataFrame tratado
-                return (
-                    dash_table.DataTable(
-                        data=self.dataframe.to_dict("records"),
-                        columns=[{"name": i, "id": i} for i in self.dataframe.columns],
-                        page_size=10,
-                        style_table={"overflowX": "auto"},
-                        style_cell={
-                            "textAlign": "left",
-                            "padding": "5px",
-                        },
-                        style_header={
-                            "backgroundColor": "lightgrey",
-                            "fontWeight": "bold",
-                        },
-                    ),
-                    {
-                        "data": [],
-                        "layout": go.Layout(
-                            images=[
-                                dict(
+                            'data': [],
+                            'layout': go.Layout(
+                                images=[dict(
                                     source=missing_data_matrix,
                                     x=0,
                                     y=1,
@@ -263,19 +208,68 @@ class Dashboard:
                                     xanchor="left",
                                     yanchor="top",
                                     opacity=1,
-                                    layer="above",
-                                )
-                            ],
+                                    layer="above"
+                                )],
+                                width=700,
+                                height=500,
+                                margin=dict(l=0, r=0, t=0, b=0),
+                                hovermode='closest'
+                            )
+                        }
+                    )
+                except Exception as e:
+                    return f"Erro ao carregar o arquivo: {str(e)}", go.Figure() 
+
+            if n_clicks > 0:  
+                if self.dataframe.empty:
+                    return dash_table.DataTable(), go.Figure()                  
+                # Removing NaN
+                self.dataframe = remove_nan_rows_from(self.dataframe)
+                # Gera a nova matriz de dados ausentes
+                missing_data_matrix = generate_missing_data_matrix_from(self.dataframe)
+
+                # Atualiza a tabela de dados com o DataFrame tratado
+                return (
+                    dash_table.DataTable(
+                        data=self.dataframe.to_dict('records'),
+                        columns=[{"name": i, "id": i} for i in self.dataframe.columns],
+                        page_size=10,
+                        style_table={'overflowX': 'auto'},
+                        style_cell={
+                            'textAlign': 'left',
+                            'padding': '5px',
+                        },
+                        style_header={
+                            'backgroundColor': 'lightgrey',
+                            'fontWeight': 'bold'
+                        }
+                    ),
+                    {
+                        'data': [],
+                        'layout': go.Layout(
+                            images=[dict(
+                                source=missing_data_matrix,
+                                x=0,
+                                y=1,
+                                xref="paper",
+                                yref="paper",
+                                sizex=1,
+                                sizey=1,
+                                xanchor="left",
+                                yanchor="top",
+                                opacity=1,
+                                layer="above"
+                            )],
                             width=700,
                             height=500,
                             margin=dict(l=0, r=0, t=0, b=0),
-                            hovermode="closest",
-                        ),
-                    },
+                            hovermode='closest'
+                        )
+                    }
                 )
 
             raise dash.exceptions.PreventUpdate  # Não atualiza se não houver cliques ou uploads válidos
-
+        
     def run(self) -> None:
         self.setup_callbacks()
         self.app.run_server(debug=True)

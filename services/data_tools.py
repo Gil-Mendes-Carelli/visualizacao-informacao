@@ -5,11 +5,6 @@ from typing import List, TextIO
 import matplotlib.pyplot as plt
 import missingno as msno
 
-
-def load_csv_from(uploaded_file: TextIO) -> pd.DataFrame:
-    return pd.read_csv(uploaded_file)
-
-
 def generate_missing_data_matrix_from(dataframe: pd.DataFrame) -> str:
     fig = plt.figure()
     # Generating the matrix
