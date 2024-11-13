@@ -1,0 +1,18 @@
+0000000000000000000000000000000000000000 b85a2f3c7ccb9788d26f3797e38b263133595946 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729186669 -0300	commit (initial): Creating the project
+b85a2f3c7ccb9788d26f3797e38b263133595946 e2ab3cfef8afe8aeb5fa31e518085b5e8af2f067 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729289035 -0300	commit: Adicionando readme.txt e configurando repositório
+e2ab3cfef8afe8aeb5fa31e518085b5e8af2f067 c73aee1fe69f1463500d249dad7ebc8b5cfc0757 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729303336 -0300	commit: building project's structure
+c73aee1fe69f1463500d249dad7ebc8b5cfc0757 44dc83e7c8ff4094f5e5cfbff944dc15a873eb7c Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729303353 -0300	commit: studying project's structure
+44dc83e7c8ff4094f5e5cfbff944dc15a873eb7c 4cc9ad2bd1081bec6a9ee32fa5505bfe3d08e0fc Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729387856 -0300	commit: Adding a starting notebook for data exploration
+4cc9ad2bd1081bec6a9ee32fa5505bfe3d08e0fc d07fe7eee46a35aa37a8bf33dc626d6e020495d6 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729388021 -0300	commit: adding a jupyter notebook/some refactoring
+d07fe7eee46a35aa37a8bf33dc626d6e020495d6 531da6d0127b65f67cdd7647344e7edb5a2de9d6 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729478446 -0300	commit: research notebooks development
+531da6d0127b65f67cdd7647344e7edb5a2de9d6 fe935c8c2df3d748c1493e0edbdf396fd56788eb Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729478511 -0300	commit: test
+fe935c8c2df3d748c1493e0edbdf396fd56788eb be1b0e7496128eb9264d23b9bbd0f15ad440b31f Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729478525 -0300	commit: test
+be1b0e7496128eb9264d23b9bbd0f15ad440b31f 56db8d497f02fd680e6916c3bfb5d758aa482e3c Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729484413 -0300	commit: new notebook
+56db8d497f02fd680e6916c3bfb5d758aa482e3c 1f0e2b6a150aced5cc791e3d371d67da7e155cc1 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729484438 -0300	commit: new notebook added
+1f0e2b6a150aced5cc791e3d371d67da7e155cc1 1f0e2b6a150aced5cc791e3d371d67da7e155cc1 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729559856 -0300	reset: moving to HEAD
+1f0e2b6a150aced5cc791e3d371d67da7e155cc1 cefbf861798988942e93359e0127a39b0f8ddeae Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729568573 -0300	commit: developing functions for data filtering/manipulation
+cefbf861798988942e93359e0127a39b0f8ddeae d1ebbdc16a9661cacc1440c7709ece1a92191205 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729568605 -0300	commit: fuck this shit
+d1ebbdc16a9661cacc1440c7709ece1a92191205 45a7e2e2101ab48ba5f53e2dd749892e93a93ed2 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729568674 -0300	commit: I hate github
+45a7e2e2101ab48ba5f53e2dd749892e93a93ed2 494e24d397f7b21dcdb625dd371c86ce23ec92dd Gil-Mendes-Carelli <gm.carelli@unesp.br> 1729782523 -0300	commit: GUI working
+494e24d397f7b21dcdb625dd371c86ce23ec92dd 6d70db9db65923d009ee83a9b50594f5cb895e59 Gil-Mendes-Carelli <gm.carelli@unesp.br> 1731520460 -0300	commit: trying and trying...
+6d70db9db65923d009ee83a9b50594f5cb895e59 ced65e723c2a51dde77ab0f7986a3f1d9c4507ec Gil-Mendes-Carelli <gm.carelli@unesp.br> 1731520809 -0300	commit: trying and trying ...
