@@ -49,6 +49,7 @@ class Dashboard:
                                 html.Div(
                                     [
                                         html.H3("Carregar Dados"),
+                                        dcc.Store(id="dataset-state", data=None),
                                         dcc.Upload(
                                             id="upload-data",
                                             children=html.Div(
@@ -87,28 +88,64 @@ class Dashboard:
                                                     className="button-primary mb-2",
                                                     style={"width": "100%"},
                                                 ),
-                                                # Layout do modal                                          
+                                                dcc.Store(id="modal-state", data=False),
+                                                dcc.Store(id="selected-label", data=""),
                                                 html.Div(
                                                     id="popup-modal",
-                                                    style={"display": "none"},  # Inicialmente escondido
                                                     children=[
-                                                        html.H2("Escolha uma Opção"),
-                                                        dcc.Dropdown(
-                                                            id="dropdown-options",
-                                                            options=[],  # Preenchido dinamicamente pelo dataframe
-                                                            placeholder="Selecione uma opção",
+                                                        html.Div(
+                                                            [
+                                                                html.H3(
+                                                                    "Escolher coluna rótulo"
+                                                                ),
+                                                                dcc.Dropdown(
+                                                                    id="dropdown-options",                                                                   
+                                                                    placeholder="Selecione uma opção",
+                                                                    options = [],
+                                                                ),
+                                                                html.Button(
+                                                                    "Salvar",
+                                                                    id="save-modal-button",
+                                                                    n_clicks=0,
+                                                                ),
+                                                                html.Button(
+                                                                    "Fechar",
+                                                                    id="close-modal-button",
+                                                                    n_clicks=0,
+                                                                ),
+                                                            ],
+                                                            style={
+                                                                "border": "line",
+                                                                "padding": "30px",
+                                                                "textAlign": "center",
+                                                            },
                                                         ),
-                                                        html.Div(id="error-message", style={"color": "red"}),  # Mensagem de erro
-                                                        html.Button("Salvar", id="save-modal-button", n_clicks=0),
-                                                        html.Button("Fechar", id="close-modal-button", n_clicks=0),
                                                     ],
+                                                    style={
+                                                        "display": "none",  # Inicialmente oculto
+                                                        "position": "fixed",
+                                                        "top": "50%",
+                                                        "left": "50%",
+                                                        "transform": "translate(-50%, -50%)",
+                                                        "backgroundColor": "white",
+                                                        "padding": "20px",
+                                                        "boxShadow": "0 4px 8px rgba(0, 0, 0, 0.1)",
+                                                        "zIndex": 1000,
+                                                    },
                                                 ),
-                                                dcc.Store(id="modal-state", data=False),
-                                                dcc.Store(id="selected-label", data=None),
                                                 html.Div(
                                                     id="popup-overlay",
-                                                    style={"display": "none"},  # Overlay inicial
-                                                ),                                                                                              
+                                                    style={
+                                                        "display": "none",  # Inicialmente invisível
+                                                        "position": "fixed",
+                                                        "top": 0,
+                                                        "left": 0,
+                                                        "width": "100%",
+                                                        "height": "100%",
+                                                        "backgroundColor": "rgba(0, 0, 0, 0.5)",
+                                                        "zIndex": 999,
+                                                    },
+                                                ),
                                                 html.Button(
                                                     "Escolher Dimensões",
                                                     id="dimension-button",
@@ -207,7 +244,8 @@ class Dashboard:
             triggered_input = ctx.triggered[0]["prop_id"].split(".")[0]
 
             # Caso o input seja o upload de um arquivo
-            if triggered_input == "upload-data" and encoded_dataset:
+            if triggered_input == "upload-data":
+                # print("Arquivo carregado")
                 try:
                     _, content_string = encoded_dataset.split(",")
                     decoded = base64.b64decode(content_string)
@@ -260,6 +298,7 @@ class Dashboard:
 
             # Caso o input seja o botão para remover dados ausentes
             if triggered_input == "remove-missing-data-button" and n_clicks > 0:
+                print("Botão remover dados ausentes clicado")
                 if self.dataframe.empty:
                     return dash_table.DataTable(), go.Figure()
                 self.dataframe = remove_nan_rows_from(self.dataframe)
@@ -300,117 +339,208 @@ class Dashboard:
                             hovermode="closest",
                         ),
                     },
-                )
-
-            # Caso o input seja o botão para escolher rótulo
-            if triggered_input == "label-button" and n_clicks > 0:
-
-                # print("Botão clicado")
-                if self.dataframe.empty:
-                    return dash_table.DataTable(), go.Figure()
-
-                self.dataframe = remove_object_columns_from(self.dataframe, "")
-                return (
-                    dash_table.DataTable(
-                        data=self.dataframe.to_dict("records"),
-                        columns=[{"name": i, "id": i} for i in self.dataframe.columns],
-                        page_size=10,
-                        style_table={"overflowX": "auto"},
-                        style_cell={"textAlign": "left", "padding": "5px"},
-                        style_header={
-                            "backgroundColor": "lightgrey",
-                            "fontWeight": "bold",
-                        },
-                    ),
-                    {
-                        "data": [],
-                        "layout": go.Layout(
-                            images=[
-                                dict(
-                                    source=missing_data_matrix,
-                                    x=0,
-                                    y=1,
-                                    xref="paper",
-                                    yref="paper",
-                                    sizex=1,
-                                    sizey=1,
-                                    xanchor="left",
-                                    yanchor="top",
-                                    opacity=1,
-                                    layer="above",
-                                )
-                            ],
-                            width=700,
-                            height=500,
-                            margin=dict(l=0, r=0, t=0, b=0),
-                            hovermode="closest",
-                        ),
-                    },
-                )
-
+                )      
+                
             raise dash.exceptions.PreventUpdate
-
-        # Callback para abrir e fechar o modal e salvar a escolha
+        
+        # Callback para abrir, fechar o modal e salvar a seleção do usuário
         @self.app.callback(
-            [
-                Output("popup-modal", "style"),
-                Output("popup-overlay", "style"),
-                Output("error-message", "children"),
-                Output("modal-state", "data"),
-                Output("selected-label", "data"),
-            ],
-            [
-                Input("save-modal-button", "n_clicks"),
-                Input("close-modal-button", "n_clicks"),
-            ],
-            [State("dropdown-options", "value"), State("modal-state", "data")],
+            [Output("popup-modal", "style"),
+            Output("popup-overlay", "style"),
+            Output("modal-state", "data"),
+            Output("dropdown-options", "options")],
+            [Input("label-button", "n_clicks"),
+            Input("close-modal-button", "n_clicks"),
+            Input("save-modal-button", "n_clicks")],
+            [State("dropdown-options", "value"),
+            State("modal-state", "data")]
         )
-        def handle_modal(save_clicks, close_clicks, selected_option, is_open):
-            print(f"Callback triggered: save_clicks={save_clicks}, close_clicks={close_clicks}")
-            ctx = dash.callback_context
+        def modal_interaction(n_clicks_open, n_clicks_close, n_clicks_save, selected_value, modal_state):
+            ctx = dash.callback_context  # Objeto do contexto atual do callback
+            triggered_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
 
-            if not ctx.triggered:
-                print("No trigger detected")
-                raise dash.exceptions.PreventUpdate
+            # Abrir o modal
+            if triggered_id == "label-button":
+                # Carregar as opções do dataframe
+                options = [{'label': label, 'value': label} for label in self.dataframe.select_dtypes(include="object").columns.to_list()]
+                return {
+                    "display": "block",  # Mostrar o modal
+                    "position": "fixed",
+                    "top": "50%",
+                    "left": "50%",
+                    "transform": "translate(-50%, -50%)",
+                    "backgroundColor": "white",
+                    "padding": "20px",
+                    "boxShadow": "0 4px 8px rgba(0, 0, 0, 0.1)",
+                    "zIndex": 1000,
+                }, {
+                    "display": "block",  # Mostrar o overlay
+                    "position": "fixed",
+                    "top": 0,
+                    "left": 0,
+                    "width": "100%",
+                    "height": "100%",
+                    "backgroundColor": "rgba(0, 0, 0, 0.5)",
+                    "zIndex": 999,
+                }, True, options  # Passar as opções para o Dropdown
 
-            triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
-            print(f"Triggered by: {triggered_id}")
+            # Fechar o modal
+            if triggered_id == "close-modal-button":
+                return {
+                    "display": "none",  # Ocultar o modal
+                }, {
+                    "display": "none",  # Ocultar o overlay
+                }, False, dash.no_update  # Não mudar as opções do dropdown
 
+            # Salvar a seleção do usuário e fechar o modal
             if triggered_id == "save-modal-button":
-                if not selected_option:
-                    print("No option selected")
-                    return (
-                        {"display": "block"},
-                        {"display": "block"},
-                        "Por favor, escolha uma opção antes de salvar.",
-                        is_open,
-                        dash.no_update,
-                    )
+                if selected_value:
+                    self.label_column = selected_value  # Salvar a escolha do usuário
+                    print(f"Escolha do usuário: {self.label_column}")
+                    self.dataframe = remove_object_columns_from(self.dataframe, self.label_column)                    
+                    # Fechar o modal após salvar
+                    return {
+                        "display": "none",  # Ocultar o modal
+                    }, {
+                        "display": "none",  # Ocultar o overlay
+                    }, False, dash.no_update  # Não mudar a seleção do dropdown
                 else:
-                    self.label_column = selected_option
-                    print(f"Option saved: {self.label_column}")
-                    return (
-                        {"display": "none"},
-                        {"display": "none"},
-                        "",
-                        False,
-                        selected_option,
-                    )
+                    # Se não houver seleção, apenas retornar o modal aberto
+                    print("Selecione uma opção antes de salvar!")
+                    return dash.no_update, dash.no_update, modal_state, dash.no_update
 
-            elif triggered_id == "close-modal-button":
-                print("Closing modal")
-                return (
-                    {"display": "none"},
-                    {"display": "none"},
-                    "",
-                    False,
-                    dash.no_update,
-                )
+            # Se nenhum clique ocorreu, não mudar nada
+            return dash.no_update, dash.no_update, modal_state, dash.no_update
 
-            print("PreventUpdate raised")
-            raise dash.exceptions.PreventUpdate
+        
+        
+        # # Callback para abrir, fechar o modal e salvar a seleção do usuário
+        # @self.app.callback(
+        #     [Output("popup-modal", "style"),
+        #     Output("popup-overlay", "style"),
+        #     Output("modal-state", "data"),
+        #     Output("dropdown-options", "options")],
+        #     [Input("label-button", "n_clicks"),
+        #     Input("close-modal-button", "n_clicks"),
+        #     Input("save-modal-button", "n_clicks")],
+        #     [State("dropdown-options", "value"),
+        #     State("modal-state", "data")]
+        # )
+        # def modal_interaction(n_clicks_open, n_clicks_close, n_clicks_save, selected_value, modal_state):
+        #     # Abrir o modal
+        #     if n_clicks_open and n_clicks_open > 0:
+        #         print('botão rótulo')
+        #         # Carregar as opções do dataframe
+        #         options = [{'label': label, 'value': label} for label in self.dataframe.select_dtypes(include="object").columns.to_list()]
+        #         return {
+        #             "display": "block",  # Mostrar o modal
+        #             "position": "fixed",
+        #             "top": "50%",
+        #             "left": "50%",
+        #             "transform": "translate(-50%, -50%)",
+        #             "backgroundColor": "white",
+        #             "padding": "20px",
+        #             "boxShadow": "0 4px 8px rgba(0, 0, 0, 0.1)",
+        #             "zIndex": 1000,
+        #         }, {
+        #             "display": "block",  # Mostrar o overlay
+        #             "position": "fixed",
+        #             "top": 0,
+        #             "left": 0,
+        #             "width": "100%",
+        #             "height": "100%",
+        #             "backgroundColor": "rgba(0, 0, 0, 0.5)",
+        #             "zIndex": 999,
+        #         }, True, options  # Passar as opções para o Dropdown
+
+        #     # Fechar o modal
+        #     if n_clicks_close and n_clicks_close > 0:
+        #         return {
+        #             "display": "none",  # Ocultar o modal
+        #         }, {
+        #             "display": "none",  # Ocultar o overlay
+        #         }, False, dash.no_update  # Não mudar as opções do dropdown
+
+        #     # Salvar a seleção do usuário e fechar o modal
+        #     if n_clicks_save and n_clicks_save > 0:
+        #         if selected_value:
+        #             self.label_column = selected_value  # Salvar a escolha do usuário
+        #             print(f"Escolha do usuário: {self.label_column}")
+                    
+        #             # Fechar o modal após salvar
+        #             return {
+        #                 "display": "none",  # Ocultar o modal
+        #             }, {
+        #                 "display": "none",  # Ocultar o overlay
+        #             }, False, dash.no_update  # Não mudar a seleção do dropdown
+        #         else:
+        #             # Se não houver seleção, apenas retornar o modal aberto
+        #             print("Selecione uma opção antes de salvar!")
+        #             return dash.no_update, dash.no_update, modal_state, dash.no_update
+
+        #     # Se nenhum clique ocorreu, não mudar nada
+        #     return dash.no_update, dash.no_update, modal_state, dash.no_update
 
 
+        # # Callback para abrir o modal e carregar as opções do dropdown
+        # @self.app.callback(
+        #     [Output("popup-modal", "style"),
+        #     Output("popup-overlay", "style"),
+        #     Output("modal-state", "data"),
+        #     Output("dropdown-options", "options")],
+        #     [Input("label-button", "n_clicks")],
+        #     [State("modal-state", "data")]
+        # )
+        # def open_modal(n_clicks, modal_state):
+        #     if n_clicks > 0:
+        #         # Carregar as opções do dataframe
+        #         options = [{'label': label, 'value': label} for label in self.dataframe.select_dtypes(include="object").columns.to_list()]
+        #         print(options)
+        #         # Exibir o modal
+        #         return {
+        #             "display": "block",  # Mostrar o modal
+        #             "position": "fixed",
+        #             "top": "50%",
+        #             "left": "50%",
+        #             "transform": "translate(-50%, -50%)",
+        #             "backgroundColor": "white",
+        #             "padding": "20px",
+        #             "boxShadow": "0 4px 8px rgba(0, 0, 0, 0.1)",
+        #             "zIndex": 1000,
+        #         }, {
+        #             "display": "block",  # Mostrar o overlay
+        #             "position": "fixed",
+        #             "top": 0,
+        #             "left": 0,
+        #             "width": "100%",
+        #             "height": "100%",
+        #             "backgroundColor": "rgba(0, 0, 0, 0.5)",
+        #             "zIndex": 999,
+        #         }, True, options  # Passar as opções para o Dropdown
+
+        #     return dash.no_update, dash.no_update, modal_state, dash.no_update
+
+
+        # # Callback para fechar o modal
+        # @self.app.callback(
+        #     [Output("popup-modal", "style"),
+        #     Output("popup-overlay", "style"),
+        #     Output("modal-state", "data")],
+        #     [Input("close-modal-button", "n_clicks")],
+        #     [State("modal-state", "data")]
+        # )
+        # def close_modal(n_clicks, modal_state):
+        #     if n_clicks:
+        #         # Ocultar o modal
+        #         return {
+        #             "display": "none",  # Ocultar o modal
+        #         }, {
+        #             "display": "none",  # Ocultar o overlay
+        #         }, False
+
+        #     return dash.no_update, dash.no_update, modal_state
+        
+        
     def run(self) -> None:
         self.setup_callbacks()
         self.app.run_server(debug=True)
