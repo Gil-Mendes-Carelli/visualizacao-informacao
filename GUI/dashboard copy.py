@@ -7,13 +7,20 @@ import plotly.figure_factory as ff
 import plotly.graph_objects as go
 import base64
 import io
+from services.data_tools import (
+    generate_missing_data_matrix_from,
+    remove_nan_rows_from,
+    remove_object_columns_from,
+)
 
 
 class Dashboard:
-    def __init__(self):
-        self.app = dash.Dash(__name__)
-        self.dataframe = pd.DataFrame()
+    def __init__(self) -> None:
+        self.app: dash.Dash = dash.Dash(__name__)
+        self.dataframe: pd.DataFrame = pd.DataFrame()
+        self.label_column: str = ''
         self.layout()
+        
 
     def layout(self) -> None:
         self.app.layout = html.Div(
@@ -45,10 +52,7 @@ class Dashboard:
                                         dcc.Upload(
                                             id="upload-data",
                                             children=html.Div(
-                                                [
-                                                    "Arraste e solte ou ",
-                                                    html.A("selecione um arquivo CSV"),
-                                                ]
+                                                ["selecione um arquivo CSV"]
                                             ),
                                             style={
                                                 "width": "100%",
@@ -65,15 +69,7 @@ class Dashboard:
                                     ],
                                     className="mb-4",
                                 ),
-                                # Controles de Dimensões
-                                html.Div(
-                                    [
-                                        html.H3("Dimensões"),
-                                        html.Div(id="dimension-checklist"),
-                                    ],
-                                    className="mb-4",
-                                ),
-                                # Controles de Manipulação
+                                # Data Manipulation
                                 html.Div(
                                     [
                                         html.H3("Manipulação de Dados"),
@@ -86,8 +82,36 @@ class Dashboard:
                                                     style={"width": "100%"},
                                                 ),
                                                 html.Button(
-                                                    "Normalização",
-                                                    id="normalize-button",
+                                                    "Escolher coluna rótulo",
+                                                    id="label-button",
+                                                    className="button-primary mb-2",
+                                                    style={"width": "100%"},
+                                                ),
+                                                # Layout do modal                                          
+                                                html.Div(
+                                                    id="popup-modal",
+                                                    style={"display": "none"},  # Inicialmente escondido
+                                                    children=[
+                                                        html.H2("Escolha uma Opção"),
+                                                        dcc.Dropdown(
+                                                            id="dropdown-options",
+                                                            options=[],  # Preenchido dinamicamente pelo dataframe
+                                                            placeholder="Selecione uma opção",
+                                                        ),
+                                                        html.Div(id="error-message", style={"color": "red"}),  # Mensagem de erro
+                                                        html.Button("Salvar", id="save-modal-button", n_clicks=0),
+                                                        html.Button("Fechar", id="close-modal-button", n_clicks=0),
+                                                    ],
+                                                ),
+                                                dcc.Store(id="modal-state", data=False),
+                                                dcc.Store(id="selected-label", data=None),
+                                                html.Div(
+                                                    id="popup-overlay",
+                                                    style={"display": "none"},  # Overlay inicial
+                                                ),                                                                                              
+                                                html.Button(
+                                                    "Escolher Dimensões",
+                                                    id="dimension-button",
                                                     className="button-primary mb-2",
                                                     style={"width": "100%"},
                                                 ),
@@ -124,7 +148,7 @@ class Dashboard:
                                         ),
                                     ]
                                 ),
-                                # Área de Análise Exploratória
+                                # Exploration Area
                                 html.Div(
                                     [
                                         dcc.Tabs(
@@ -142,14 +166,6 @@ class Dashboard:
                                                     children=[
                                                         dcc.Graph(
                                                             id="missing-data-matrix"
-                                                        )
-                                                    ],
-                                                ),
-                                                dcc.Tab(
-                                                    label="Estatísticas",
-                                                    children=[
-                                                        html.Div(
-                                                            id="statistics-content"
                                                         )
                                                     ],
                                                 ),
@@ -173,127 +189,227 @@ class Dashboard:
 
     def setup_callbacks(self) -> None:
         @self.app.callback(
-            [
-                Output("output-data-upload", "children"),
-                Output("missing-data-matrix", "figure"),
-            ],
-            [Input("upload-data", "contents")],
-            [State("upload-data", "filename")],
+            Output("output-data-upload", "children"),
+            Output("missing-data-matrix", "figure"),
+            Input("upload-data", "contents"),
+            Input("remove-missing-data-button", "n_clicks"),
+            State("output-data-upload", "children"),
+            prevent_initial_call=True,
         )
-        def update_output(contents: Union[str, None], filename: str) -> Union[
-            Tuple[List[html.Div], Any],
-            Tuple[dash_table.DataTable, go.Figure],
-        ]:
-            if contents is None:
-                return [html.Div(["Nenhum arquivo carregado."])], dash.no_update
+        def update_data(encoded_dataset, n_clicks, _):
+            # print("Callback disparado")
 
-            content_string: str = ""
-            _, content_string = contents.split(",")
-            decoded: bytes = base64.b64decode(content_string)
-            try:
-                if "csv" in filename:
+            # Identificar qual input disparou o callback
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                raise dash.exceptions.PreventUpdate
+
+            triggered_input = ctx.triggered[0]["prop_id"].split(".")[0]
+
+            # Caso o input seja o upload de um arquivo
+            if triggered_input == "upload-data" and encoded_dataset:
+                try:
+                    _, content_string = encoded_dataset.split(",")
+                    decoded = base64.b64decode(content_string)
                     self.dataframe = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
-                else:
-                    return [
-                        html.Div(["Arquivo não suportado: ", filename])
-                    ], dash.no_update
-            except Exception as e:
-                return [
-                    html.Div(["Erro ao processar o arquivo: ", str(e)])
-                ], dash.no_update
+                    missing_data_matrix = generate_missing_data_matrix_from(
+                        self.dataframe
+                    )
+                    return (
+                        dash_table.DataTable(
+                            data=self.dataframe.to_dict("records"),
+                            columns=[
+                                {"name": i, "id": i} for i in self.dataframe.columns
+                            ],
+                            page_size=10,
+                            style_table={"overflowX": "auto"},
+                            style_cell={"textAlign": "left", "padding": "5px"},
+                            style_header={
+                                "backgroundColor": "lightgrey",
+                                "fontWeight": "bold",
+                            },
+                        ),
+                        {
+                            "data": [],
+                            "layout": go.Layout(
+                                images=[
+                                    dict(
+                                        source=missing_data_matrix,
+                                        x=0,
+                                        y=1,
+                                        xref="paper",
+                                        yref="paper",
+                                        sizex=1,
+                                        sizey=1,
+                                        xanchor="left",
+                                        yanchor="top",
+                                        opacity=1,
+                                        layer="above",
+                                    )
+                                ],
+                                width=700,
+                                height=500,
+                                margin=dict(l=0, r=0, t=0, b=0),
+                                hovermode="closest",
+                            ),
+                        },
+                    )
+                except Exception as e:
+                    print(f"Erro: {e}")
+                    return "Erro ao carregar arquivo.", go.Figure()
 
-            table = dash_table.DataTable(
-                columns=[{"name": col, "id": col} for col in self.dataframe.columns],
-                data=self.dataframe.to_dict("records"),
-                page_size=10,
-                style_table={"overflowX": "auto"},
-            )
-
-            missing_data_matrix_fig = ff.create_annotated_heatmap(
-                z=self.dataframe.isna().astype(int).values,
-                x=list(self.dataframe.columns),
-                y=list(self.dataframe.index),
-                annotation_text=self.dataframe.isna().astype(int).astype(str).values,
-                colorscale="Viridis",
-            )
-
-            return table, missing_data_matrix_fig
-
-        @self.app.callback(
-            Output("dimension-checklist", "children"),
-            [Input("upload-data", "contents")],
-        )
-        def update_dimensions_checklist(contents):
-            if contents is None or self.dataframe.empty:
-                return []
-
-            numeric_cols = self.dataframe.select_dtypes(include=[float, int]).columns
-            return dcc.Checklist(
-                options=[{"label": f" {col}", "value": col} for col in numeric_cols],
-                value=list(numeric_cols),
-                id="dimension-selector",
-                style={"marginLeft": "10px"},
-            )
-
-        @self.app.callback(
-            Output("statistics-content", "children"), [Input("upload-data", "contents")]
-        )
-        def update_statistics(contents):
-            if contents is None or self.dataframe.empty:
-                return html.Div("Carregue um dataset para ver as estatísticas")
-
-            stats = self.dataframe.describe()
-            return dash_table.DataTable(
-                data=stats.reset_index().to_dict("records"),
-                columns=[
-                    {"name": col, "id": col} for col in stats.reset_index().columns
-                ],
-                style_table={"overflowX": "auto"},
-                style_cell={"textAlign": "left", "padding": "5px"},
-                style_header={
-                    "backgroundColor": "rgb(230, 230, 230)",
-                    "fontWeight": "bold",
-                },
-            )
-
-        @self.app.callback(
-            Output("parallel-coordinates-plot", "figure"),
-            [Input("dimension-selector", "value"), Input("upload-data", "contents")],
-        )
-        def update_parallel_coordinates(selected_dimensions, contents):
-            if contents is None or self.dataframe.empty or not selected_dimensions:
-                return {}
-
-            try:
-                color_column = selected_dimensions[0]
-                fig = px.parallel_coordinates(
-                    self.dataframe,
-                    dimensions=selected_dimensions,
-                    color=self.dataframe[color_column],
-                    color_continuous_scale=px.colors.sequential.Viridis,
-                    labels={color_column: color_column},
+            # Caso o input seja o botão para remover dados ausentes
+            if triggered_input == "remove-missing-data-button" and n_clicks > 0:
+                if self.dataframe.empty:
+                    return dash_table.DataTable(), go.Figure()
+                self.dataframe = remove_nan_rows_from(self.dataframe)
+                missing_data_matrix = generate_missing_data_matrix_from(self.dataframe)
+                return (
+                    dash_table.DataTable(
+                        data=self.dataframe.to_dict("records"),
+                        columns=[{"name": i, "id": i} for i in self.dataframe.columns],
+                        page_size=10,
+                        style_table={"overflowX": "auto"},
+                        style_cell={"textAlign": "left", "padding": "5px"},
+                        style_header={
+                            "backgroundColor": "lightgrey",
+                            "fontWeight": "bold",
+                        },
+                    ),
+                    {
+                        "data": [],
+                        "layout": go.Layout(
+                            images=[
+                                dict(
+                                    source=missing_data_matrix,
+                                    x=0,
+                                    y=1,
+                                    xref="paper",
+                                    yref="paper",
+                                    sizex=1,
+                                    sizey=1,
+                                    xanchor="left",
+                                    yanchor="top",
+                                    opacity=1,
+                                    layer="above",
+                                )
+                            ],
+                            width=700,
+                            height=500,
+                            margin=dict(l=0, r=0, t=0, b=0),
+                            hovermode="closest",
+                        ),
+                    },
                 )
-                return fig
-            except Exception as e:
-                print(f"Erro ao atualizar o gráfico: {e}")
-                return {}
 
+            # Caso o input seja o botão para escolher rótulo
+            if triggered_input == "label-button" and n_clicks > 0:
+
+                # print("Botão clicado")
+                if self.dataframe.empty:
+                    return dash_table.DataTable(), go.Figure()
+
+                self.dataframe = remove_object_columns_from(self.dataframe, "")
+                return (
+                    dash_table.DataTable(
+                        data=self.dataframe.to_dict("records"),
+                        columns=[{"name": i, "id": i} for i in self.dataframe.columns],
+                        page_size=10,
+                        style_table={"overflowX": "auto"},
+                        style_cell={"textAlign": "left", "padding": "5px"},
+                        style_header={
+                            "backgroundColor": "lightgrey",
+                            "fontWeight": "bold",
+                        },
+                    ),
+                    {
+                        "data": [],
+                        "layout": go.Layout(
+                            images=[
+                                dict(
+                                    source=missing_data_matrix,
+                                    x=0,
+                                    y=1,
+                                    xref="paper",
+                                    yref="paper",
+                                    sizex=1,
+                                    sizey=1,
+                                    xanchor="left",
+                                    yanchor="top",
+                                    opacity=1,
+                                    layer="above",
+                                )
+                            ],
+                            width=700,
+                            height=500,
+                            margin=dict(l=0, r=0, t=0, b=0),
+                            hovermode="closest",
+                        ),
+                    },
+                )
+
+            raise dash.exceptions.PreventUpdate
+
+        # Callback para abrir e fechar o modal e salvar a escolha
         @self.app.callback(
-            Output("output-data-normalized", "children"),
-            [Input("normalize-button", "n_clicks")],
-            [State("dimension-selector", "value")],
+            [
+                Output("popup-modal", "style"),
+                Output("popup-overlay", "style"),
+                Output("error-message", "children"),
+                Output("modal-state", "data"),
+                Output("selected-label", "data"),
+            ],
+            [
+                Input("save-modal-button", "n_clicks"),
+                Input("close-modal-button", "n_clicks"),
+            ],
+            [State("dropdown-options", "value"), State("modal-state", "data")],
         )
-        def normalize_data(n_clicks, selected_dimensions):
-            if n_clicks is None or n_clicks == 0 or not selected_dimensions:
-                return ""
+        def handle_modal(save_clicks, close_clicks, selected_option, is_open):
+            print(f"Callback triggered: save_clicks={save_clicks}, close_clicks={close_clicks}")
+            ctx = dash.callback_context
 
-            for col in selected_dimensions:
-                if col in self.dataframe.columns:
-                    self.dataframe[col] = (
-                        self.dataframe[col] - self.dataframe[col].min()
-                    ) / (self.dataframe[col].max() - self.dataframe[col].min())
+            if not ctx.triggered:
+                print("No trigger detected")
+                raise dash.exceptions.PreventUpdate
 
-            return "Dados normalizados com sucesso!"
+            triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
+            print(f"Triggered by: {triggered_id}")
+
+            if triggered_id == "save-modal-button":
+                if not selected_option:
+                    print("No option selected")
+                    return (
+                        {"display": "block"},
+                        {"display": "block"},
+                        "Por favor, escolha uma opção antes de salvar.",
+                        is_open,
+                        dash.no_update,
+                    )
+                else:
+                    self.label_column = selected_option
+                    print(f"Option saved: {self.label_column}")
+                    return (
+                        {"display": "none"},
+                        {"display": "none"},
+                        "",
+                        False,
+                        selected_option,
+                    )
+
+            elif triggered_id == "close-modal-button":
+                print("Closing modal")
+                return (
+                    {"display": "none"},
+                    {"display": "none"},
+                    "",
+                    False,
+                    dash.no_update,
+                )
+
+            print("PreventUpdate raised")
+            raise dash.exceptions.PreventUpdate
+
 
     def run(self) -> None:
         self.setup_callbacks()

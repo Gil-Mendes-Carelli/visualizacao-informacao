@@ -5,6 +5,10 @@ from typing import List, TextIO
 import matplotlib.pyplot as plt
 import missingno as msno
 
+# gambiarra?
+import matplotlib
+matplotlib.use('Agg') 
+
 def generate_missing_data_matrix_from(dataframe: pd.DataFrame) -> str:
     fig = plt.figure()
     # Generating the matrix
@@ -16,7 +20,6 @@ def generate_missing_data_matrix_from(dataframe: pd.DataFrame) -> str:
     # encoding the image on base64
     encoded_image: str = base64.b64encode(img_buffer.read()).decode("utf-8")
     return f"data:image/png;base64,{encoded_image}"
-
 
 def remove_nan_rows_from(dataframe: pd.DataFrame) -> pd.DataFrame:
     return dataframe.dropna()
